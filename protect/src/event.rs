@@ -1,10 +1,14 @@
+use std::io;
+
+use aya::Bpf;
 use aya::maps::AsyncPerfEventArray;
 use aya::util::online_cpus;
-use aya::Bpf;
 use bytes::BytesMut;
 use prettytable::{Attr, Cell, color, Row, row, Table};
-use protect_common::Event;
 use users::{get_group_by_gid, get_user_by_uid};
+
+use protect_common::Event;
+
 pub fn wait_events(bpf: &mut Bpf) -> Result<(), anyhow::Error> {
     let cpus = online_cpus()?;
     let mut events = AsyncPerfEventArray::try_from(bpf.take_map("EVENT").expect(""))?;
@@ -36,16 +40,21 @@ fn print_event(event: &Event, cpu: u32) {
         None => format!("{}", event.gid),
         Some(name) => name.name().to_string_lossy().to_string(),
     };
-    table.add_row(row!["cpu", "action", "user", "group", "elf"]);
+    table.set_titles(row!["cpu", "action", "user", "group", "parent", "program"]);
     table.add_row(Row::new(vec![
-        Cell::new(format!("core{}", cpu).as_str()).with_style(Attr::ForegroundColor(color::BLUE)),
+        Cell::new(format!("{}", cpu).as_str()).with_style(Attr::ForegroundColor(color::BLUE)),
         match event.denied {
             true => Cell::new("Denied").with_style(Attr::ForegroundColor(color::RED)),
             false => Cell::new("Allowed").with_style(Attr::ForegroundColor(color::GREEN)),
         },
         Cell::new(user_name.as_str()).with_style(Attr::ForegroundColor(color::BRIGHT_YELLOW)),
         Cell::new(group_name.as_str()).with_style(Attr::ForegroundColor(color::BRIGHT_YELLOW)),
+        Cell::new(format!("{}/{}", event.ppid, String::from_utf8(event.parent.to_vec()).unwrap_or("Unknown".to_owned())).as_str()).with_style(Attr::ForegroundColor(color::BRIGHT_WHITE)),
         Cell::new(pathname.as_str()).with_style(Attr::ForegroundColor(color::BRIGHT_WHITE)),
     ]));
-    table.printstd();
+    {
+        //prevent overprinting when using multithreading
+        let _stdout = io::stdout().lock();
+        table.print_tty(true).unwrap();
+    }
 }

@@ -1,10 +1,12 @@
-use aya::{programs::Lsm, Btf};
-use aya::{include_bytes_aligned, Bpf};
+use aya::{Btf, programs::Lsm};
+use aya::{Bpf, include_bytes_aligned};
 use aya_log::BpfLogger;
-use log::{info, warn, debug};
+use log::{debug, info, warn};
 use tokio::signal;
+
 use crate::black_list::init_black_list;
 use crate::event::wait_events;
+
 //lsm types
 //include/linux/lsm_hook_defs.h
 mod event;
@@ -23,11 +25,11 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     #[cfg(debug_assertions)]
-    let mut bpf = Bpf::load(include_bytes_aligned!(
+        let mut bpf = Bpf::load(include_bytes_aligned!(
         "../../target/bpfel-unknown-none/debug/protect-ebpf"
     ))?;
     #[cfg(not(debug_assertions))]
-    let mut bpf = Bpf::load(include_bytes_aligned!(
+        let mut bpf = Bpf::load(include_bytes_aligned!(
         "../../target/bpfel-unknown-none/release/protect"
     ))?;
     if let Err(e) = BpfLogger::init(&mut bpf) {
@@ -35,8 +37,8 @@ async fn main() -> Result<(), anyhow::Error> {
         warn!("failed to initialize eBPF logger: {}", e);
     }
     let btf = Btf::from_sys_fs()?;
-    let program: &mut Lsm = bpf.program_mut("bprm_check_security").unwrap().try_into()?;
-    program.load("bprm_check_security", &btf)?;
+    let program: &mut Lsm = bpf.program_mut("protect_execve").unwrap().try_into()?;
+    program.load("bprm_creds_from_file", &btf)?;
     program.attach()?;
     init_black_list(&mut bpf);
     wait_events(&mut bpf)?;

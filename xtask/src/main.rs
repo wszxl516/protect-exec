@@ -1,9 +1,9 @@
-mod build_ebpf;
-mod run;
-
 use std::process::exit;
 
 use clap::Parser;
+
+mod build_ebpf;
+mod run;
 
 #[derive(Debug, Parser)]
 pub struct Options {

@@ -1,11 +1,18 @@
-use aya::maps::{BloomFilter, MapData};
+use std::collections::HashSet;
+use std::io::Read;
+use std::os::unix::fs::MetadataExt;
+use std::path::PathBuf;
+
 use aya::Bpf;
+use aya::maps::{BloomFilter, MapData};
 use clap::Parser;
-use log::debug;
-use walkdir::WalkDir;
+use log::{debug, info};
+use walkdir::{DirEntryExt, WalkDir};
 
 use protect_common::PATH;
+
 pub struct Strings(pub String);
+
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -28,43 +35,55 @@ impl From<Strings> for PATH {
         buffer
     }
 }
+
+pub const ELF_MAGIC: [u8; 4] = [0x7F, b'E', b'L', b'F'];
+
 pub fn init_black_list(bpf: &mut Bpf) {
     let args = Args::parse();
-    let mut black_list: BloomFilter<&mut MapData, PATH> =
+    let mut files = HashSet::new();
+    let mut black_list: BloomFilter<&mut MapData, u64> =
         BloomFilter::try_from(bpf.map_mut("BLACK_LIST").expect("")).unwrap();
 
     match args.bin.is_empty() {
         true => {}
         false => {
-            black_list.insert(PATH::from(Strings(args.bin)), 0).unwrap();
+            let ino = PathBuf::from(args.bin).metadata().unwrap().ino();
+            files.insert(ino);
         }
     }
     match args.dir.is_empty() {
         true => {}
         false => {
             debug!("Black list");
-            let files = WalkDir::new(args.dir)
+            files.extend(WalkDir::new(args.dir)
                 .follow_links(args.follow_links)
                 .follow_root_links(true)
                 .into_iter()
                 .filter_map(|e| match e {
                     Ok(ee) => {
                         if ee.file_type().is_file() {
-                            Some(ee)
+                            let mut f = std::fs::File::open(ee.path()).unwrap();
+                            let mut magic = [0u8; 4];
+                            f.read(&mut magic).unwrap();
+                            match magic == ELF_MAGIC {
+                                true => Some(ee),
+                                false => None,
+                            }
                         } else {
                             None
                         }
                     }
                     Err(_) => None,
                 })
-                .map(|e| e.path().to_string_lossy().to_string())
-                .collect::<Vec<String>>();
-            let len = files.len();
-            for file in files {
-                debug!("add {} Black list", file);
-                black_list.insert(PATH::from(Strings(file)), 0).unwrap();
-            }
-            debug!("Black list len: {}", len);
+                .map(|e| e.ino())
+                .collect::<HashSet<u64>>());
         }
     }
+    let mut count = 0u32;
+    debug!("found {} file(s)", files.len());
+    for file in files {
+        black_list.insert(file, 0).unwrap();
+        count += 1;
+    }
+    info!("{} elf file(s) added to Black list", count);
 }
