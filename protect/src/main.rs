@@ -4,16 +4,18 @@ use aya_log::BpfLogger;
 use log::{debug, info, warn};
 use tokio::signal;
 
-use crate::black_list::init_black_list;
+use crate::setup::{check_permission, setup};
 use crate::event::wait_events;
 
 //lsm types
 //include/linux/lsm_hook_defs.h
 mod event;
-mod black_list;
+mod setup;
+pub mod version;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
+    check_permission();
     env_logger::init();
     let rlim = libc::rlimit {
         rlim_cur: libc::RLIM_INFINITY,
@@ -40,7 +42,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let program: &mut Lsm = bpf.program_mut("protect_execve").unwrap().try_into()?;
     program.load("bprm_creds_from_file", &btf)?;
     program.attach()?;
-    init_black_list(&mut bpf);
+    setup(&mut bpf);
     wait_events(&mut bpf)?;
     info!("Waiting for Ctrl-C...");
     signal::ctrl_c().await?;

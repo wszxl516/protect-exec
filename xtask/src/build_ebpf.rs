@@ -1,4 +1,5 @@
 use std::{path::PathBuf, process::Command};
+use std::io::{Seek, SeekFrom, Write};
 
 use clap::Parser;
 
@@ -39,15 +40,34 @@ pub struct Options {
     pub release: bool,
 }
 
+#[path = "../../protect/src/version.rs"]
+mod kernel_version;
 pub fn build_ebpf(opts: Options) -> Result<(), anyhow::Error> {
     let dir = PathBuf::from("protect-ebpf");
-    
-    let status = Command::new("aya-tool")
-        .current_dir(&dir)
-        .args(["generate", "linux_binprm", "task_struct", "--", "-o", "src/vmlinuz.rs"])
-        .status()
-        .expect("failed generate kernel api src/vmlinuz.rs");
-    assert!(status.success());
+    let version = include_str!("/proc/version").strip_suffix("\n").unwrap();
+    if version != kernel_version::KERNEL_VERSION_STR
+    {
+        println!("regenerate vmlinuz.rs");
+        let gen_file = dir.join("src/vmlinuz.rs").to_string_lossy().to_string();
+        let version_file = "../../protect/src/version.rs";
+        let kernel_version_buf = format!("pub const KERNEL_VERSION_STR: &str = \"{}\";", version);
+        let mut fd = std::fs::File::options()
+            .write(true)
+            .create(true)
+            .open(version_file)?;
+        fd.seek(SeekFrom::Start(0))?;
+        fd.write_all(kernel_version_buf.as_bytes())?;
+        let status = Command::new("aya-tool")
+            .args(["generate",
+                "linux_binprm",
+                "task_struct",
+                "--", "-o",
+                &gen_file,
+            ])
+            .status()
+            .expect("failed generate kernel api src/vmlinuz.rs");
+        assert!(status.success());
+    }
     let target = format!("--target={}", opts.target);
     let mut args = vec![
         "build",

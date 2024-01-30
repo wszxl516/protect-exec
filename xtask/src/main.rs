@@ -1,3 +1,4 @@
+#![feature(pattern)]
 use std::process::exit;
 
 use clap::Parser;
