@@ -49,14 +49,16 @@ pub fn build_ebpf(opts: Options) -> Result<(), anyhow::Error> {
     {
         println!("regenerate vmlinuz.rs");
         let gen_file = dir.join("src/vmlinuz.rs").to_string_lossy().to_string();
-        let version_file = "../../protect/src/version.rs";
+        let version_file = "protect/src/version.rs";
         let kernel_version_buf = format!("pub const KERNEL_VERSION_STR: &str = \"{}\";", version);
         let mut fd = std::fs::File::options()
             .write(true)
             .create(true)
+            .truncate(true)
             .open(version_file)?;
         fd.seek(SeekFrom::Start(0))?;
         fd.write_all(kernel_version_buf.as_bytes())?;
+        fd.flush()?;
         let status = Command::new("aya-tool")
             .args(["generate",
                 "linux_binprm",
