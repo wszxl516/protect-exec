@@ -10,12 +10,12 @@
 use aya_bpf::{BpfContext, helpers, macros::lsm, memset, programs::LsmContext};
 use aya_bpf::macros::map;
 use aya_bpf::maps::{BloomFilter, PerCpuArray, PerfEventArray};
-use aya_log_ebpf::debug;
+use aya_log_ebpf::{debug};
 
-use protect_common::{Event, MAX_BLACK_LIST};
+use protect_common::{Event, GlobalInode, MAX_BLACK_LIST};
 
 use crate::tools::read_struct;
-use crate::vmlinuz::{file, inode, linux_binprm, task_struct};
+use crate::vmlinuz::{file, inode, linux_binprm, super_block, task_struct};
 
 mod tools;
 mod vmlinuz;
@@ -25,12 +25,14 @@ static mut EVENT: PerfEventArray<Event> = PerfEventArray::with_max_entries(0, 0)
 #[map]
 static mut BUFFER: PerCpuArray<Event> = PerCpuArray::with_max_entries(1, 0);
 #[map]
-static mut BLACK_LIST: BloomFilter<u64> = BloomFilter::with_max_entries(MAX_BLACK_LIST as u32, 0);
+static mut BLACK_LIST: BloomFilter<u128> = BloomFilter::with_max_entries(MAX_BLACK_LIST as u32, 0);
 
 #[map]
 static mut FILE: PerCpuArray<file> = PerCpuArray::with_max_entries(1, 0);
 #[map]
 static mut INODE: PerCpuArray<inode> = PerCpuArray::with_max_entries(1, 0);
+#[map]
+static mut SB: PerCpuArray<super_block> = PerCpuArray::with_max_entries(1, 0);
 #[map]
 static mut TASK: PerCpuArray<task_struct> = PerCpuArray::with_max_entries(1, 0);
 
@@ -52,8 +54,8 @@ fn try_bprm_check_security(ctx: LsmContext) -> Result<i32, i32> {
     event.ppid = task.tgid as u32;
     read_bytes!(task.comm.as_ptr() as *const u8, event.parent.as_mut_slice());
     read_bytes!(bprm.filename as *const u8, event.path.as_mut_slice());
-    let i_num = get_inode(&ctx)?;
-    let ret = match black_list_filter(i_num) {
+    event.inode = get_global_inode(&ctx)?;
+    let ret = match black_list_filter(event.inode) {
         true => {
             event.denied = true;
             Err(-1)
@@ -75,19 +77,26 @@ fn try_bprm_check_security(ctx: LsmContext) -> Result<i32, i32> {
     ret
 }
 
-fn get_inode(ctx: &LsmContext) -> Result<u64, i32> {
+
+
+
+fn get_global_inode(ctx: &LsmContext) -> Result<GlobalInode, i32> {
     let inode = array_get_mut!(INODE, 0);
     let exec_file = array_get_mut!(FILE, 0);
+    let sb = array_get_mut!(SB, 0);
     let file_addr = unsafe { ctx.arg::<*const u8>(1) };
     read_struct(exec_file, file_addr)?;
     read_struct(inode, exec_file.f_inode as *const u8)?;
-    Ok(inode.i_ino)
+    read_struct(sb, inode.i_sb as *const u8)?;
+    let minor = MINOR!(sb.s_dev);
+    let major = MAJOR!(sb.s_dev);
+    Ok(GlobalInode{device: makedev!(major,minor), inode:  inode.i_ino})
 }
 
 
-fn black_list_filter(ino: u64) -> bool {
+fn black_list_filter(ino: GlobalInode) -> bool {
     unsafe {
-        match BLACK_LIST.contains(&ino) {
+        match BLACK_LIST.contains(&ino.value()) {
             Ok(_) => true,
             Err(_) => false,
         }

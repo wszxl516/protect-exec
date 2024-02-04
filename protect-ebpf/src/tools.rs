@@ -10,9 +10,7 @@ macro_rules! array_get_mut {
 macro_rules! read_bytes {
     ($src: expr, $dest: expr) => {{
         pub use ::aya_bpf;
-        unsafe {
-            aya_bpf::helpers::bpf_probe_read_kernel_str_bytes($src, $dest).map_err(|_| 0)?
-        }
+        unsafe { aya_bpf::helpers::bpf_probe_read_kernel_str_bytes($src, $dest).map_err(|_| 0)? }
     }};
 }
 
@@ -27,14 +25,33 @@ macro_rules! read_struct_from_ctx {
     }};
 }
 
+//sys/sysmacros.h
+#[macro_export]
+macro_rules! MINOR {
+    ($dev: expr) => {
+        ((($dev) & ((1 << 20) - 1)) as u32)
+    };
+}
+#[macro_export]
+macro_rules! MAJOR {
+    ($dev: expr) => {
+        ((($dev) >> 20) as u32)
+    };
+}
+#[macro_export]
+macro_rules! makedev {
+    ($major: expr, $minor: expr) => {
+        ((((($major) & 0xfffff000).overflowing_shl(32).0)
+            | ((($major) & 0x00000fff) << 8)
+            | ((($minor) & 0xffffff00) << 12)
+            | (($minor) & 0x000000ff)) as u64)
+    };
+}
 pub fn read_struct<T: Sized>(dest: &mut T, src: *const u8) -> Result<(), i32> {
     unsafe {
-        let exec_slice = core::slice::from_raw_parts_mut(
-            dest as *const T as *mut u8,
-            core::mem::size_of::<T>(),
-        );
-        helpers::bpf_probe_read_kernel_buf(src, exec_slice)
-            .map_err(|_| 0)?;
+        let exec_slice =
+            core::slice::from_raw_parts_mut(dest as *const T as *mut u8, core::mem::size_of::<T>());
+        helpers::bpf_probe_read_kernel_buf(src, exec_slice).map_err(|_| 0)?;
     }
     Ok(())
 }

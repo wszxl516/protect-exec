@@ -40,7 +40,7 @@ fn print_event(event: &Event, cpu: u32) {
         None => format!("{}", event.gid),
         Some(name) => name.name().to_string_lossy().to_string(),
     };
-    table.set_titles(row!["cpu", "action", "user", "group", "parent", "program"]);
+    table.set_titles(row!["cpu", "action", "user", "group", "parent", "dev/inode", "program"]);
     table.add_row(Row::new(vec![
         Cell::new(format!("{}", cpu).as_str()).with_style(Attr::ForegroundColor(color::BLUE)),
         match event.denied {
@@ -50,6 +50,7 @@ fn print_event(event: &Event, cpu: u32) {
         Cell::new(user_name.as_str()).with_style(Attr::ForegroundColor(color::BRIGHT_YELLOW)),
         Cell::new(group_name.as_str()).with_style(Attr::ForegroundColor(color::BRIGHT_YELLOW)),
         Cell::new(format!("{}/{}", event.ppid, String::from_utf8(event.parent.to_vec()).unwrap_or("Unknown".to_owned())).as_str()).with_style(Attr::ForegroundColor(color::BRIGHT_WHITE)),
+        Cell::new(format!("{}/{}", event.inode.device, event.inode.inode).as_str()).with_style(Attr::ForegroundColor(color::BRIGHT_WHITE)),
         Cell::new(pathname.as_str()).with_style(Attr::ForegroundColor(color::BRIGHT_WHITE)),
     ]));
     {
