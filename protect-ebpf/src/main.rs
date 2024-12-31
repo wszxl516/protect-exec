@@ -1,11 +1,10 @@
-#![feature(panic_info_message)]
-#![feature(strict_provenance)]
 #![no_std]
 #![no_main]
 #![allow(non_upper_case_globals)]
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
 #![allow(dead_code)]
+#![allow(static_mut_refs)]
 
 use aya_bpf::{BpfContext, helpers, macros::lsm, memset, programs::LsmContext};
 use aya_bpf::macros::map;
@@ -35,6 +34,8 @@ static mut INODE: PerCpuArray<inode> = PerCpuArray::with_max_entries(1, 0);
 static mut SB: PerCpuArray<super_block> = PerCpuArray::with_max_entries(1, 0);
 #[map]
 static mut TASK: PerCpuArray<task_struct> = PerCpuArray::with_max_entries(1, 0);
+#[map]
+static mut BINPRM: PerCpuArray<linux_binprm> = PerCpuArray::with_max_entries(1, 0);
 
 #[lsm(hook = "bprm_creds_from_file")]
 pub fn protect_execve(ctx: LsmContext) -> i32 {
@@ -42,7 +43,9 @@ pub fn protect_execve(ctx: LsmContext) -> i32 {
 }
 
 fn try_bprm_check_security(ctx: LsmContext) -> Result<i32, i32> {
-    let bprm = read_struct_from_ctx!(ctx, 0, linux_binprm);
+    let bprm = array_get_mut!(BINPRM, 0);
+    let bprm_addr = unsafe { ctx.arg::<*const u8>(0) };
+    read_struct(bprm, bprm_addr)?;
     let event = array_get_mut!(BUFFER, 0);
     unsafe { memset(event as *mut Event as *mut u8, 0, Event::SIZE) };
     let task = array_get_mut!(TASK, 0);

@@ -1,1 +1,1 @@
-pub const KERNEL_VERSION_STR: &str = "Linux version 6.7.3-zen1-1-zen (linux-zen@archlinux) (gcc (GCC) 13.2.1 20230801, GNU ld (GNU Binutils) 2.42.0) #1 ZEN SMP PREEMPT_DYNAMIC Thu, 01 Feb 2024 10:30:25 +0000";
+pub const KERNEL_VERSION_STR: &str = "Linux version 6.12.7-zen1-1-zen (linux-zen@archlinux) (gcc (GCC) 14.2.1 20240910, GNU ld (GNU Binutils) 2.43.0) #1 ZEN SMP PREEMPT_DYNAMIC Fri, 27 Dec 2024 14:24:32 +0000";
