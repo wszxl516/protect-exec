@@ -1,6 +1,6 @@
 [build]
-target-dir = "../target"
 target = "bpfel-unknown-none"
-
+[target.bpfel-unknown-none]
+linker = "bpf-linker"
 [unstable]
 build-std = ["core"]

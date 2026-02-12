@@ -1,3 +1,32 @@
 [workspace]
-members = ["xtask", "protect", "protect-common"]
+members = ["protect", "protect-common", "protect-ebpf"]
 resolver = "1"
+
+[workspace.dependencies]
+aya = { git = "https://github.com/aya-rs/aya", default-features = false, tag = "aya-v0.13.0"}
+aya-build = { git = "https://github.com/aya-rs/aya", default-features = false, tag = "aya-v0.13.0" }
+aya-ebpf = { git = "https://github.com/aya-rs/aya", default-features = false , tag = "aya-v0.13.0"}
+aya-log = { git = "https://github.com/aya-rs/aya", default-features = false , tag = "aya-v0.13.0"}
+aya-log-ebpf = { git = "https://github.com/aya-rs/aya", default-features = false , tag = "aya-v0.13.0"}
+which = { version = "8.0.0"}
+
+[profile.dev]
+opt-level = 3
+debug = false
+debug-assertions = false
+overflow-checks = false
+lto = true
+panic = "abort"
+incremental = false
+codegen-units = 1
+rpath = false
+
+[profile.release]
+lto = true
+panic = "abort"
+debug = true
+codegen-units = 1
+
+[profile.release.package.protect-ebpf]
+debug = 2
+codegen-units = 1

@@ -5,13 +5,11 @@ use std::path::PathBuf;
 use std::process;
 
 use aya::maps::{BloomFilter, MapData};
-use aya::Bpf;
+use aya::Ebpf;
 use clap::Parser;
 use log::{debug, info};
 use walkdir::{DirEntryExt, WalkDir};
 use protect_common::GlobalInode;
-
-use crate::version::KERNEL_VERSION_STR;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -32,23 +30,7 @@ struct Args {
 
 pub const ELF_MAGIC: [u8; 4] = [0x7F, b'E', b'L', b'F'];
 
-fn version_check(args: &Args) {
-    if args.kernel_version {
-        println!("{}", KERNEL_VERSION_STR);
-        process::exit(0)
-    }
-    let mut fd = std::fs::File::open("/proc/version").unwrap();
-    let mut version = String::new();
-    fd.read_to_string(&mut version).unwrap();
-    let version = version.strip_suffix("\n").unwrap();
-    if KERNEL_VERSION_STR != version {
-        println!("program kernel version: {}", KERNEL_VERSION_STR);
-        println!("current kernel version: {}", version);
-        println!("Please recompile otherwise errors may occur");
-        process::exit(0)
-    }
-}
-fn black_list(args: &Args, bpf: &mut Bpf) {
+fn black_list(args: &Args, bpf: &mut Ebpf) {
     let mut files = HashSet::new();
     let mut black_list: BloomFilter<&mut MapData, u128> =
         BloomFilter::try_from(bpf.map_mut("BLACK_LIST").expect("")).unwrap();
@@ -104,9 +86,8 @@ fn black_list(args: &Args, bpf: &mut Bpf) {
     }
     info!("{} elf file(s) added to Black list", count);
 }
-pub fn setup(bpf: &mut Bpf) {
+pub fn setup(bpf: &mut Ebpf) {
     let args = Args::parse();
-    version_check(&args);
     black_list(&args, bpf)
 }
 
