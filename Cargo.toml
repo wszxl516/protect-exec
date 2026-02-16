@@ -9,6 +9,8 @@ aya-ebpf = { git = "https://github.com/aya-rs/aya", default-features = false , t
 aya-log = { git = "https://github.com/aya-rs/aya", default-features = false , tag = "aya-v0.13.0"}
 aya-log-ebpf = { git = "https://github.com/aya-rs/aya", default-features = false , tag = "aya-v0.13.0"}
 which = { version = "8.0.0"}
+derive_more = {version = "2.1.1", default-features = false}
+num_enum = {version = "0.7.5", default-features = false}
 
 [profile.dev]
 opt-level = 3

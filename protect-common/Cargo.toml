@@ -9,6 +9,8 @@ user = ["aya"]
 
 [dependencies]
 aya = { workspace = true, optional = true }
-
+aya-log-ebpf = {workspace = true}
+num_enum = {workspace = true}
+derive_more ={ workspace = true, features = ["display"]}
 [lib]
 path = "src/lib.rs"

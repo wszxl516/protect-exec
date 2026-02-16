@@ -32,9 +32,6 @@ pub const ELF_MAGIC: [u8; 4] = [0x7F, b'E', b'L', b'F'];
 
 fn black_list(args: &Args, bpf: &mut Ebpf) {
     let mut files = HashSet::new();
-    let mut black_list: BloomFilter<&mut MapData, u128> =
-        BloomFilter::try_from(bpf.map_mut("BLACK_LIST").expect("")).unwrap();
-
     match args.bin.is_empty() {
         true => {}
         false => {
@@ -78,11 +75,17 @@ fn black_list(args: &Args, bpf: &mut Ebpf) {
             );
         }
     }
-    let mut count = 0u32;
-    debug!("found {} file(s)", files.len());
+    let count = files.len();
+    debug!("found {} file(s)", count);
+    let mut exec_black_list: BloomFilter<&mut MapData, u128> =
+        BloomFilter::try_from(bpf.map_mut("EXEC_BLACK_LIST").expect("")).unwrap();
+    for (dev, ino) in &files {
+        exec_black_list.insert(GlobalInode{device: *dev, inode: *ino}.value(), 0).unwrap();
+    }
+    let mut kill_black_list: BloomFilter<&mut MapData, u128> =
+        BloomFilter::try_from(bpf.map_mut("KILL_BLACK_LIST").expect("")).unwrap();
     for (dev, ino) in files {
-        black_list.insert(GlobalInode{device: dev, inode: ino}.value(), 0).unwrap();
-        count += 1;
+        kill_black_list.insert(GlobalInode{device: dev, inode: ino}.value(), 0).unwrap();
     }
     info!("{} elf file(s) added to Black list", count);
 }

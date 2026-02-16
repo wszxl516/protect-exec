@@ -37,6 +37,11 @@ async fn main() -> Result<(), anyhow::Error> {
     .ok_or(anyhow::anyhow!("program not found!"))?.try_into()?;
     program.load("bprm_creds_from_file", &btf)?;
     program.attach()?;
+
+    let program: &mut Lsm = bpf.program_mut("protect_kill")
+    .ok_or(anyhow::anyhow!("program not found!"))?.try_into()?;
+    program.load("task_kill", &btf)?;
+    program.attach()?;
     info!("program started!");
     setup(&mut bpf);
     wait_events(&mut bpf)?;
